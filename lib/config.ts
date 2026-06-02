@@ -22,7 +22,7 @@ export type DbCidrAllow = string | { cidr: string; description?: string };
 export interface EnvConfig {
   account: string;
   region: string;
-  /** Primary domain for this environment (e.g. library.geekway.com), pointed at the ALB via external DNS */
+  /** Primary domain for this environment (e.g. library.ruleslawyer.com), pointed at the ALB via external DNS */
   domainName: string;
   /**
    * Secrets Manager references. Convention: an ARN means "import this existing
@@ -43,7 +43,7 @@ export interface EnvConfig {
    */
   auth0: {
     /**
-     * Auth0 tenant domain (e.g. `geekway.auth0.com`). Single source for the
+     * Auth0 tenant domain (e.g. `ruleslawyer.us.auth0.com`). Single source for the
      * frontend's `AUTH0_DOMAIN` and the backend's `AUTH0_ISSUER_URL` (derived as
      * `https://${domain}/`), so both services always trust the same tenant.
      */

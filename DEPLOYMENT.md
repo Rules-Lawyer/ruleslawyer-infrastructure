@@ -122,6 +122,23 @@ a0deploy import -c config.<env>.json -i tenant.yaml
   post-login Action.
 - After import, note the values the next steps need: the **ruleslawyer-frontend**
   client secret (→ step 6) and each **SPA** client ID (→ frontends CI).
+- **The SPA CI/CD needs these as GitHub Actions *secrets*.** The three SPA
+  bundles are built by the `frontends` repo workflows
+  ([`build-deploy-*.yml`](../legacy-frontends/.github/workflows/)), which bake the
+  Auth0 config into the static bundle at build time from repo secrets — so set
+  these in that repo (Settings → Secrets and variables → Actions), alongside the
+  rest of its CI secrets in step 8:
+  - `AUTH_BOARD_GAME_ADMIN_CLIENT_ID` — the `board-game-admin` SPA client ID.
+  - `AUTH_LIBRARIAN_CLIENT_ID` — the `librarian` SPA client ID.
+  - `AUTH_PLAY_PRIZE_ENTRY_CLIENT_ID` — the `play-prize-entry` SPA client ID.
+  - `AUTH_DOMAIN` — the tenant domain (the same value as `config.ts`'s
+    `auth0.domain` / the `AUTH0_DOMAIN` you exported above).
+  - `API_IDENTIFIER` — the API audience (matches `config.auth0.audience` /
+    `config.<env>.json`'s `API_AUDIENCE`).
+
+  The remaining frontends-CI secrets (`NONPROD_ROLE_ARN`/`PROD_ROLE_ARN`,
+  `AWS_REGION`, `API_HOST`/`API_HOST_NONPROD`, `WEBPACK_MODE`) are *not* step-2
+  outputs and are covered in [step 8](#8-wire-up-cicd).
 
 ## 3. Install and bootstrap
 
