@@ -114,9 +114,15 @@ a0deploy import -c config.<env>.json -i tenant.yaml
   and derives the backend's `AUTH0_ISSUER_URL` as `https://${config.auth0.domain}/`.
   Match `config.<env>.json`'s `API_AUDIENCE` mapping to `config.auth0.audience` (it
   becomes the resource-server `identifier`) and point the tenant (`AUTH0_DOMAIN`
-  above) at `config.auth0.domain` — otherwise token validation fails. The audience
-  is a fixed API identifier shared across both envs (`https://library.ruleslawyer.com`),
-  so it is deliberately *not* the same as nonprod's `domainName`. `tenant.yaml`
+  above) at `config.auth0.domain` — otherwise token validation fails. **Each env
+  has its own audience** (nonprod `https://nonprod.library.ruleslawyer.com`, prod
+  `https://library.ruleslawyer.com`) — it is an opaque identifier, not a live URL,
+  so it need not be shared between envs. The one invariant: for a given env the
+  *same* string must appear everywhere it's consumed — `config.auth0.audience` (the
+  backend's `AUTH0_AUDIENCE` and the Next.js frontend's), `config.<env>.json`'s
+  `API_AUDIENCE` (the resource-server `identifier`), and the SPAs' `API_IDENTIFIER`
+  GitHub build secret. In particular, set nonprod's `API_IDENTIFIER` secret to
+  `https://nonprod.library.ruleslawyer.com`, **not** prod's value. `tenant.yaml`
   defines **five** clients (Next.js frontend, Swagger, and the three SPAs
   `board-game-admin` / `librarian` / `play-prize-entry`) plus the `Add User Claims`
   post-login Action.
