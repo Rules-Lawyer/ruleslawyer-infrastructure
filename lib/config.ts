@@ -195,11 +195,11 @@ export const envConfig: Record<EnvName, EnvConfig> = {
     // Fresh account — let CDK create the GitHub OIDC provider.
     githubOidcProviderExists: false,
     githubRepos: {
-      backend: 'ruleslawyer/ruleslawyer-backend',
-      frontend: 'ruleslawyer/ruleslawyer-frontend',
-      frontends: 'ruleslawyer/legacy-frontends',
+      backend: 'Rules-Lawyer/ruleslawyer-backend',
+      frontend: 'Rules-Lawyer/ruleslawyer-frontend',
+      frontends: 'Rules-Lawyer/legacy-frontends',
     },
-    githubInfraRepo: 'ruleslawyer/ruleslawyer-infrastructure',
+    githubInfraRepo: 'Rules-Lawyer/ruleslawyer-infrastructure',
   },
 
   prod: {
@@ -254,10 +254,10 @@ export const envConfig: Record<EnvName, EnvConfig> = {
     // "provider already exists" failure; false creates it.
     githubOidcProviderExists: false,
     githubRepos: {
-      backend: 'rules-lawyer/ruleslawyer-backend',
-      frontend: 'rules-lawyer/ruleslawyer-frontend',
-      frontends: 'rules-lawyer/legacy-frontends',
+      backend: 'Rules-Lawyer/ruleslawyer-backend',
+      frontend: 'Rules-Lawyer/ruleslawyer-frontend',
+      frontends: 'Rules-Lawyer/legacy-frontends',
     },
-    githubInfraRepo: 'rules-lawyer/ruleslawyer-infrastructure',
+    githubInfraRepo: 'Rules-Lawyer/ruleslawyer-infrastructure',
   },
 };
