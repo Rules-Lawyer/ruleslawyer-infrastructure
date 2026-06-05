@@ -22,7 +22,7 @@ export type DbCidrAllow = string | { cidr: string; description?: string };
 export interface EnvConfig {
   account: string;
   region: string;
-  /** Primary domain for this environment (e.g. library.ruleslawyer.com), pointed at the ALB via external DNS */
+  /** Primary domain for this environment (e.g. library.ruleslawyer.net), pointed at the ALB via external DNS */
   domainName: string;
   /**
    * Secrets Manager references. Convention: an ARN means "import this existing
@@ -158,13 +158,13 @@ export const envConfig: Record<EnvName, EnvConfig> = {
     // Greenfield: new sub-account to be created; set its 12-digit ID here.
     account: 'TODO_NONPROD_ACCOUNT_ID',
     region: 'us-east-1',
-    domainName: 'nonprod.library.ruleslawyer.com',
+    domainName: 'nonprod.library.ruleslawyer.net',
     // No ARNs: CDK creates these secrets (db credentials, auth0 client id,
     // frontend secrets) for you to populate after the first deploy.
     secrets: {},
     auth0: {
       domain: 'ruleslawyer-nonprod.us.auth0.com',
-      audience: 'https://nonprod.library.ruleslawyer.com',
+      audience: 'https://nonprod.library.ruleslawyer.net',
     },
     // DB stays private (isolated subnets) — no external Postgres access.
     dbPubliclyAccessible: false,
@@ -175,10 +175,10 @@ export const envConfig: Record<EnvName, EnvConfig> = {
       // Smaller range for nonprod; tune as needed.
       autoScaling: { minCapacity: 1, maxCapacity: 2, cpuTargetPercent: 50 },
       origins: {
-        admin: 'https://nonprod.library.ruleslawyer.com',
-        librarian: 'https://nonprod.library.ruleslawyer.com',
-        playAndWin: 'https://nonprod.library.ruleslawyer.com',
-        ruleslawyerFrontend: 'https://nonprod.library.ruleslawyer.com',
+        admin: 'https://nonprod.library.ruleslawyer.net',
+        librarian: 'https://nonprod.library.ruleslawyer.net',
+        playAndWin: 'https://nonprod.library.ruleslawyer.net',
+        ruleslawyerFrontend: 'https://nonprod.library.ruleslawyer.net',
       },
     },
     ruleslawyerFrontend: {
@@ -186,11 +186,11 @@ export const envConfig: Record<EnvName, EnvConfig> = {
       memoryMiB: 1024,
       autoScaling: { minCapacity: 1, maxCapacity: 2, cpuTargetPercent: 50 },
       auth0ClientId: 'TODO_NONPROD_AUTH0_SPA_CLIENT_ID',
-      appBaseUrl: 'https://nonprod.library.ruleslawyer.com',
-      apiUrl: 'https://nonprod.library.ruleslawyer.com/api',
-      legacyAdminUrl: 'https://nonprod.library.ruleslawyer.com/legacy/admin',
-      legacyLibrarianUrl: 'https://nonprod.library.ruleslawyer.com/legacy/librarian',
-      legacyPlayPrizeEntryUrl: 'https://nonprod.library.ruleslawyer.com/legacy/playandwin',
+      appBaseUrl: 'https://nonprod.library.ruleslawyer.net',
+      apiUrl: 'https://nonprod.library.ruleslawyer.net/api',
+      legacyAdminUrl: 'https://nonprod.library.ruleslawyer.net/legacy/admin',
+      legacyLibrarianUrl: 'https://nonprod.library.ruleslawyer.net/legacy/librarian',
+      legacyPlayPrizeEntryUrl: 'https://nonprod.library.ruleslawyer.net/legacy/playandwin',
     },
     // Fresh account — let CDK create the GitHub OIDC provider.
     githubOidcProviderExists: false,
@@ -205,14 +205,14 @@ export const envConfig: Record<EnvName, EnvConfig> = {
   prod: {
     account: '594062863389',
     region: 'us-east-1',
-    domainName: 'library.ruleslawyer.com',
+    domainName: 'library.ruleslawyer.net',
     // No ARNs: CDK creates these secrets fresh in the new account, to be
     // populated after the first deploy (see CUTOVER.md). Re-add a boardgamegeek
     // ARN once that secret exists if the backend needs BGG.
     secrets: {},
     auth0: {
       domain: 'ruleslawyer.us.auth0.com',
-      audience: 'https://library.ruleslawyer.com',
+      audience: 'https://library.ruleslawyer.net',
     },
     // Public DB endpoint, replicating the existing hand-built prod's direct
     // Postgres access. Posture is fixed here — flipping it later replaces the
@@ -230,10 +230,10 @@ export const envConfig: Record<EnvName, EnvConfig> = {
       // can't scale back out from 0 (no CPU metric with no tasks), so the floor is 1.
       autoScaling: { minCapacity: 1, maxCapacity: 10, cpuTargetPercent: 50 },
       origins: {
-        admin: 'https://library.ruleslawyer.com',
-        librarian: 'https://library.ruleslawyer.com',
-        playAndWin: 'https://library.ruleslawyer.com',
-        ruleslawyerFrontend: 'https://library.ruleslawyer.com',
+        admin: 'https://library.ruleslawyer.net/legacy/admin',
+        librarian: 'https://library.ruleslawyer.net/legacy/librarian',
+        playAndWin: 'https://library.ruleslawyer.net/legacy/playandwin',
+        ruleslawyerFrontend: 'https://library.ruleslawyer.net',
       },
     },
     ruleslawyerFrontend: {
@@ -243,11 +243,11 @@ export const envConfig: Record<EnvName, EnvConfig> = {
       // service back out from 0, so a user-facing service must not floor at 0.
       autoScaling: { minCapacity: 1, maxCapacity: 10, cpuTargetPercent: 50 },
       auth0ClientId: 'TODO_PROD_AUTH0_SPA_CLIENT_ID',
-      appBaseUrl: 'https://library.ruleslawyer.com',
-      apiUrl: 'https://library.ruleslawyer.com/api',
-      legacyAdminUrl: 'https://library.ruleslawyer.com/legacy/admin',
-      legacyLibrarianUrl: 'https://library.ruleslawyer.com/legacy/librarian',
-      legacyPlayPrizeEntryUrl: 'https://library.ruleslawyer.com/legacy/playandwin',
+      appBaseUrl: 'https://library.ruleslawyer.net',
+      apiUrl: 'https://library.ruleslawyer.net/api',
+      legacyAdminUrl: 'https://library.ruleslawyer.net/legacy/admin',
+      legacyLibrarianUrl: 'https://library.ruleslawyer.net/legacy/librarian',
+      legacyPlayPrizeEntryUrl: 'https://library.ruleslawyer.net/legacy/playandwin',
     },
     // Set true if the prod account already has a GitHub Actions OIDC provider
     // (check: `aws iam list-open-id-connect-providers`). Importing avoids the
