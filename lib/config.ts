@@ -242,7 +242,7 @@ export const envConfig: Record<EnvName, EnvConfig> = {
       // minCapacity 1: keep one warm task — CPU target-tracking can't scale a
       // service back out from 0, so a user-facing service must not floor at 0.
       autoScaling: { minCapacity: 1, maxCapacity: 10, cpuTargetPercent: 50 },
-      auth0ClientId: 'TODO_PROD_AUTH0_SPA_CLIENT_ID',
+      auth0ClientId: 'QelVadoCJummSImuvFg0r95iRhf6KEcO',
       appBaseUrl: 'https://library.ruleslawyer.net',
       apiUrl: 'https://library.ruleslawyer.net/api',
       legacyAdminUrl: 'https://library.ruleslawyer.net/legacy/admin',
