@@ -32,8 +32,6 @@ name: CDK
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
 
 concurrency:
   group: cdk-${{ github.workflow }}-${{ github.ref }}
