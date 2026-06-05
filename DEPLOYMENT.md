@@ -30,7 +30,7 @@ Throughout, replace `<env>` with `nonprod` or `prod`.
 In `lib/config.ts`, fill in the `<env>` block:
 
 - `account` — the 12-digit account ID (replace the `TODO_*_ACCOUNT_ID` placeholder).
-- `domainName` — the public hostname for this env (e.g. `library.ruleslawyer.com`).
+- `domainName` — the public hostname for this env (e.g. `library.ruleslawyer.net`).
 - `secrets: {}` — leave empty so CDK **creates** the secrets for you to populate
   later. (An ARN here would instead *import* an existing secret.)
 - `dbPubliclyAccessible` — `true` puts the RDS in public subnets with a public
@@ -102,7 +102,7 @@ a0deploy import -c config.<env>.json -i tenant.yaml
 ```
 
 - The callback/origin/logout URLs must match the env's **public `domainName`**
-  (e.g. `nonprod.library.ruleslawyer.com`) — the host CloudFront serves under once
+  (e.g. `nonprod.library.ruleslawyer.net`) — the host CloudFront serves under once
   DNS is pointed in step 7, *not* the auto-generated `*.cloudfront.net`
   distribution URL. These come from `config.<env>.json`'s
   `AUTH0_KEYWORD_REPLACE_MAPPINGS` (`APP_BASE_URL`, `SPA_BASE_URL`, `API_HOST`),
@@ -115,14 +115,14 @@ a0deploy import -c config.<env>.json -i tenant.yaml
   Match `config.<env>.json`'s `API_AUDIENCE` mapping to `config.auth0.audience` (it
   becomes the resource-server `identifier`) and point the tenant (`AUTH0_DOMAIN`
   above) at `config.auth0.domain` — otherwise token validation fails. **Each env
-  has its own audience** (nonprod `https://nonprod.library.ruleslawyer.com`, prod
-  `https://library.ruleslawyer.com`) — it is an opaque identifier, not a live URL,
+  has its own audience** (nonprod `https://nonprod.library.ruleslawyer.net`, prod
+  `https://library.ruleslawyer.net`) — it is an opaque identifier, not a live URL,
   so it need not be shared between envs. The one invariant: for a given env the
   *same* string must appear everywhere it's consumed — `config.auth0.audience` (the
   backend's `AUTH0_AUDIENCE` and the Next.js frontend's), `config.<env>.json`'s
   `API_AUDIENCE` (the resource-server `identifier`), and the SPAs' `API_IDENTIFIER`
   GitHub build secret. In particular, set nonprod's `API_IDENTIFIER` secret to
-  `https://nonprod.library.ruleslawyer.com`, **not** prod's value. `tenant.yaml`
+  `https://nonprod.library.ruleslawyer.net`, **not** prod's value. `tenant.yaml`
   defines **five** clients (Next.js frontend, Swagger, and the three SPAs
   `board-game-admin` / `librarian` / `play-prize-entry`) plus the `Add User Claims`
   post-login Action.

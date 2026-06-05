@@ -84,7 +84,7 @@ export class NetworkStack extends cdk.Stack {
     }
 
     // ── ACM Certificate ───────────────────────────────────────────────────
-    // ruleslawyer.com DNS is hosted off AWS (Squarespace), so the cert is validated
+    // ruleslawyer.net DNS is hosted off AWS (Squarespace), so the cert is validated
     // by adding the CNAME ACM provides at the external DNS host. The first deploy
     // blocks until that record is in place; ACM auto-renews afterward as long as
     // the validation CNAME stays put.
