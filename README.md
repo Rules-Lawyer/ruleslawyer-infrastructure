@@ -76,8 +76,8 @@ npx cdk deploy ruleslawyer-nonprod-services --context env=nonprod
 Both environments are fully CDK-managed, each in its own AWS sub-account. The
 platform now runs entirely on this stack.
 
-Because `ruleslawyer.com` DNS lives off AWS (Squarespace), this stack manages **no
-Route53 records**: `library.ruleslawyer.com` is a CNAME at Squarespace pointing at the
+Because `ruleslawyer.net` DNS lives off AWS (Squarespace), this stack manages **no
+Route53 records**: `library.ruleslawyer.net` is a CNAME at Squarespace pointing at the
 ALB's DNS name (a CfnOutput of the network stack), and the ACM cert is validated
 by a CNAME there once (then auto-renews). The prod RDS keeps
 `deletionProtection: true` / `removalPolicy: RETAIN` to guard against accidental
