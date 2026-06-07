@@ -17,7 +17,7 @@ Throughout, replace `<env>` with `nonprod` or `prod`.
   `sudo pacman -S aws-cli-v2`. The v1 `aws-cli` package conflicts and lacks `aws
   configure sso`, so replace it if present:
   `sudo pacman -R aws-cli && sudo pacman -S aws-cli-v2`.
-- AWS credentials for the target account with permission to deploy — see step 2.
+- AWS credentials for the target account with permission to deploy — see step 3.
 - DNS access at your provider (e.g. Squarespace) — DNS is **not** in AWS, so you
   add records by hand.
 - An Auth0 tenant for this environment, plus a Machine-to-Machine app authorized
@@ -30,7 +30,7 @@ Throughout, replace `<env>` with `nonprod` or `prod`.
 In `lib/config.ts`, fill in the `<env>` block:
 
 - `account` — the 12-digit account ID (replace the `TODO_*_ACCOUNT_ID` placeholder).
-- `domainName` — the public hostname for this env (e.g. `library.geekway.com`).
+- `domainName` — the public hostname for this env (e.g. `library.ruleslawyer.net`).
 - `secrets: {}` — leave empty so CDK **creates** the secrets for you to populate
   later. (An ARN here would instead *import* an existing secret.)
 - `dbPubliclyAccessible` — `true` puts the RDS in public subnets with a public
@@ -57,7 +57,96 @@ In `lib/config.ts`, fill in the `<env>` block:
   Actions OIDC provider (`aws iam list-open-id-connect-providers`); then `true`.
 - `githubRepos` — the repos allowed to deploy via the OIDC role.
 
-## 2. Install and bootstrap
+## 2. Provision the Auth0 tenant
+
+> **Needs no AWS resources** — only the `domainName` you set in step 1 and the
+> Auth0 M2M prerequisite. Its *outputs* (the ruleslawyer-frontend client secret and
+> the per-SPA client IDs) aren't consumed until **step 6 (Populate the created
+> secrets)** and CI (step 8), so nothing here is gated on the CDK deploys — run it
+> now, or in parallel with steps 3–5.
+
+Auth0 is deployed separately from CDK, with the Auth0 Deploy CLI against the
+config in [`auth0/`](auth0/). It creates the API (audience), the post-login
+Action that injects the `user_email` / `user_name` claims the backend requires,
+and the five application clients (Next.js frontend, Swagger, three SPAs). Full
+background is in
+[`ruleslawyer-backend/Documentation/AUTH0_TENANT_SETUP.md`](../ruleslawyer-backend/Documentation/AUTH0_TENANT_SETUP.md).
+
+**One tenant per environment.** In Auth0 the **tenant is the environment boundary** —
+it owns its own users, applications (Auth0 calls them *clients*), API, and `*.auth0.com`
+domain; there's no sub-environment inside a tenant. So nonprod and prod each get their
+own tenant (e.g. `ruleslawyer-nonprod.us.auth0.com` and `ruleslawyer.us.auth0.com`),
+and `config.ts`'s per-env `auth0.domain` selects which one each env trusts. Provision
+each tenant by running this step once against it, with that env's credentials and
+config file.
+
+Only the hosts differ between envs, so the per-env values live in a **per-env config
+file** — `config.<env>.json` — while `tenant.yaml` (the actual resources) stays single
+and shared:
+
+- `auth0/config.nonprod.json` / `auth0/config.prod.json` — the
+  `AUTH0_KEYWORD_REPLACE_MAPPINGS` (`APP_BASE_URL`, `SPA_BASE_URL`, `API_HOST`,
+  `API_AUDIENCE`) for that env.
+- `auth0/tenant.yaml` — the API, the five clients, and the Action, with `##…##`
+  placeholders the config file fills.
+
+```bash
+cd auth0
+# Set the M2M credentials for THIS env's tenant. They must match the config file
+# below — running config.nonprod.json against the prod tenant's creds imports
+# nonprod hosts into prod. AUTH0_DOMAIN here = config.ts's auth0.domain for <env>.
+export AUTH0_DOMAIN=<tenant>.us.auth0.com
+export AUTH0_CLIENT_ID=<m2m client id>
+export AUTH0_CLIENT_SECRET=<m2m client secret>
+a0deploy import -c config.<env>.json -i tenant.yaml
+```
+
+- The callback/origin/logout URLs must match the env's **public `domainName`**
+  (e.g. `nonprod.library.ruleslawyer.net`) — the host CloudFront serves under once
+  DNS is pointed in step 7, *not* the auto-generated `*.cloudfront.net`
+  distribution URL. These come from `config.<env>.json`'s
+  `AUTH0_KEYWORD_REPLACE_MAPPINGS` (`APP_BASE_URL`, `SPA_BASE_URL`, `API_HOST`),
+  which fill the `##…##` placeholders in `tenant.yaml`. `tenant.yaml` already
+  includes the local Docker dev URLs for `docker compose up`.
+- The API identifier (audience) and tenant domain are **per-env values in
+  `config.ts`** under the `auth0` block (`auth0.audience` / `auth0.domain`):
+  `services-stack.ts` reads them as `config.auth0.audience` / `config.auth0.domain`
+  and derives the backend's `AUTH0_ISSUER_URL` as `https://${config.auth0.domain}/`.
+  Match `config.<env>.json`'s `API_AUDIENCE` mapping to `config.auth0.audience` (it
+  becomes the resource-server `identifier`) and point the tenant (`AUTH0_DOMAIN`
+  above) at `config.auth0.domain` — otherwise token validation fails. **Each env
+  has its own audience** (nonprod `https://nonprod.library.ruleslawyer.net`, prod
+  `https://library.ruleslawyer.net`) — it is an opaque identifier, not a live URL,
+  so it need not be shared between envs. The one invariant: for a given env the
+  *same* string must appear everywhere it's consumed — `config.auth0.audience` (the
+  backend's `AUTH0_AUDIENCE` and the Next.js frontend's), `config.<env>.json`'s
+  `API_AUDIENCE` (the resource-server `identifier`), and the SPAs' `API_IDENTIFIER`
+  GitHub build secret. In particular, set nonprod's `API_IDENTIFIER` secret to
+  `https://nonprod.library.ruleslawyer.net`, **not** prod's value. `tenant.yaml`
+  defines **five** clients (Next.js frontend, Swagger, and the three SPAs
+  `board-game-admin` / `librarian` / `play-prize-entry`) plus the `Add User Claims`
+  post-login Action.
+- After import, note the values the next steps need: the **ruleslawyer-frontend**
+  client secret (→ step 6) and each **SPA** client ID (→ frontends CI).
+- **The SPA CI/CD needs these as GitHub Actions *secrets*.** The three SPA
+  bundles are built by the `frontends` repo workflows
+  ([`build-deploy-*.yml`](../legacy-frontends/.github/workflows/)), which bake the
+  Auth0 config into the static bundle at build time from repo secrets — so set
+  these in that repo (Settings → Secrets and variables → Actions), alongside the
+  rest of its CI secrets in step 8:
+  - `AUTH_BOARD_GAME_ADMIN_CLIENT_ID` — the `board-game-admin` SPA client ID.
+  - `AUTH_LIBRARIAN_CLIENT_ID` — the `librarian` SPA client ID.
+  - `AUTH_PLAY_PRIZE_ENTRY_CLIENT_ID` — the `play-prize-entry` SPA client ID.
+  - `AUTH_DOMAIN` — the tenant domain (the same value as `config.ts`'s
+    `auth0.domain` / the `AUTH0_DOMAIN` you exported above).
+  - `API_IDENTIFIER` — the API audience (matches `config.auth0.audience` /
+    `config.<env>.json`'s `API_AUDIENCE`).
+
+  The remaining frontends-CI secrets (`NONPROD_ROLE_ARN`/`PROD_ROLE_ARN`,
+  `AWS_REGION`, `API_HOST`/`API_HOST_NONPROD`, `WEBPACK_MODE`) are *not* step-2
+  outputs and are covered in [step 8](#8-wire-up-cicd).
+
+## 3. Install and bootstrap
 
 `npm install` puts the pinned CDK CLI in `node_modules`; run it with `npx cdk`
 (or install globally — see the README's Requirements). The `cdk …` commands below
@@ -99,10 +188,10 @@ explicitly: CDK still synthesizes the app to bootstrap, and `env` defaults to
 still the `TODO_NONPROD_ACCOUNT_ID` placeholder — so pass the env that matches the
 account you confirmed above.
 
-## 3. Deploy network + data
+## 4. Deploy network + data
 
 ```bash
-npx cdk deploy geekway-<env>-network geekway-<env>-data --context env=<env>
+npx cdk deploy ruleslawyer-<env>-network ruleslawyer-<env>-data --context env=<env>
 ```
 
 - **The ACM cert blocks the deploy until you validate it.** Get the validation
@@ -112,17 +201,17 @@ npx cdk deploy geekway-<env>-network geekway-<env>-data --context env=<env>
   by CloudFront, which is created in this stack too.)
 - This creates the VPC, ALB, cert, the S3 SPA bucket + CloudFront distribution,
   the RDS (which generates its own master credentials secret), and the
-  placeholder secret `geekway-<env>-db-credentials`. No services yet, so nothing
+  placeholder secret `ruleslawyer-<env>-db-credentials`. No services yet, so nothing
   waits on container images.
 
-## 4. Deploy services + seed images
+## 5. Deploy services + seed images
 
 The services reference the `:latest` image, which doesn't exist yet — and a
 Fargate service can't reach steady state without an image, so you **must** get an
 image into ECR during this step or the deploy will hang and roll back.
 
 ```bash
-npx cdk deploy geekway-<env>-services --context env=<env>
+npx cdk deploy ruleslawyer-<env>-services --context env=<env>
 ```
 
 This creates the ECR repos and the services. **While the deploy is still waiting
@@ -140,65 +229,28 @@ completes.
 > `removalPolicy: RETAIN`, so a failed/rolled-back deploy orphans them — delete or
 > import them before retrying.
 
-## 5. Provision the Auth0 tenant
-
-Auth0 is deployed separately from CDK, with the Auth0 Deploy CLI against the
-config in [`auth0/`](auth0/). It creates the API (audience), the post-login
-Action that injects the `user_email` / `user_name` claims the backend requires,
-and the five application clients (Next.js frontend, Swagger, three SPAs). Full
-background is in
-[`ruleslawyer-backend/Documentation/AUTH0_TENANT_SETUP.md`](../ruleslawyer-backend/Documentation/AUTH0_TENANT_SETUP.md).
-
-```bash
-cd auth0
-# Point config.json's keyword mappings at this env's hosts: the public
-# domainName / CloudFront URL (callbacks, origins) and the API audience.
-export AUTH0_DOMAIN=<tenant>.us.auth0.com
-export AUTH0_CLIENT_ID=<m2m client id>
-export AUTH0_CLIENT_SECRET=<m2m client secret>
-a0deploy import -c config.json -i tenant.yaml
-```
-
-- The callback/origin/logout URLs must match the env's public hostname (the
-  CloudFront URL from step 3) — the same ones CDK routes. These come from
-  `auth0/config.json`'s `AUTH0_KEYWORD_REPLACE_MAPPINGS` (`APP_BASE_URL`,
-  `SPA_BASE_URL`, `API_HOST`), which fill the `##…##` placeholders in `tenant.yaml`.
-  `tenant.yaml` already includes the local Docker dev URLs for `docker compose up`.
-- The API identifier (audience) and issuer are **hardcoded in
-  `lib/services-stack.ts`** (not `config.ts`): the backend task-def sets
-  `AUTH0_AUDIENCE=https://api.ruleslawyer.geekway.com` and
-  `AUTH0_ISSUER_URL=https://geekway.auth0.com/`, and the frontend task-def sets
-  `AUTH0_DOMAIN=geekway.auth0.com`. So set `auth0/config.json`'s `API_AUDIENCE`
-  mapping to `https://api.ruleslawyer.geekway.com` (it becomes the resource-server
-  `identifier`), and point the tenant at the `geekway.auth0.com` tenant — otherwise
-  token validation fails. `tenant.yaml` defines **five** clients (Next.js frontend,
-  Swagger, and the three SPAs `board-game-admin` / `librarian` / `play-prize-entry`)
-  plus the `Add User Claims` post-login Action.
-- After import, note the values the next steps need: the **ruleslawyer-frontend**
-  client secret (→ step 6) and each **SPA** client ID (→ frontends CI).
-
 ## 6. Populate the created secrets
 
 CDK created three secrets with placeholder/generated values to fill in now:
 
 - `ruleslawyer-frontend-<env>-secrets` — the `AUTH_SECRET` key was generated; set
   the empty `AUTH0_CLIENT_SECRET` key from the `ruleslawyer-frontend` client created
-  in step 5. (The backend container reads these as the `AUTH0_SECRET` and
+  in step 2. (The backend container reads these as the `AUTH0_SECRET` and
   `AUTH0_CLIENT_SECRET` env vars.)
-- `geekway-<env>-db-credentials` — the template ships with `POSTGRES_USER` already
-  set to `geekway` and an auto-generated `POSTGRES_PASSWORD`, but **that generated
+- `ruleslawyer-<env>-db-credentials` — the template ships with `POSTGRES_USER` already
+  set to `ruleslawyer` and an auto-generated `POSTGRES_PASSWORD`, but **that generated
   password is not the database's password** — the RDS instance generated its own
-  master-credentials secret (`rds.Credentials.fromGeneratedSecret('geekway')`). Copy
+  master-credentials secret (`rds.Credentials.fromGeneratedSecret('ruleslawyer')`). Copy
   the real values across: set `POSTGRES_HOST` to the new RDS endpoint (the
   `DbEndpoint` output / `aws rds describe-db-instances`), overwrite `POSTGRES_PASSWORD`
   with the RDS master password, and set `DATABASE_URL` to the full Prisma Postgres
   connection string (Prisma reads `DATABASE_URL`, provider `postgresql`):
 
   ```
-  postgresql://geekway:<password>@<rds-endpoint>:5432/geekway?schema=public
+  postgresql://ruleslawyer:<password>@<rds-endpoint>:5432/ruleslawyer?schema=public
   ```
 
-  where user and database name are both `geekway` (set in `data-stack.ts`), the port
+  where user and database name are both `ruleslawyer` (set in `data-stack.ts`), the port
   is 5432, `<rds-endpoint>` is the same host you put in `POSTGRES_HOST`, and
   `<password>` is the RDS master password (URL-encode any special characters in it).
   The backend reads all four keys
@@ -210,12 +262,12 @@ CDK created three secrets with placeholder/generated values to fill in now:
 
 The SPAs' Auth0 client IDs are not secrets — each is baked in at build time by
 the frontends CI (`AUTH_CLIENT_ID` build arg), using the per-SPA client IDs from
-step 5.
+step 2.
 
 Restart the services so they pick up the populated secrets:
 
 ```bash
-aws ecs update-service --cluster geekway-<env> --service <name> --force-new-deployment
+aws ecs update-service --cluster ruleslawyer-<env> --service <name> --force-new-deployment
 ```
 
 ## 7. Point DNS at CloudFront
@@ -249,9 +301,9 @@ one shared role), each trusting only that repo and carrying only its actions:
 
 | App repo               | Role name                          | Output                       |
 | ---------------------- | ---------------------------------- | ---------------------------- |
-| `ruleslawyer-backend`  | `geekway-<env>-github-deploy-backend`  | `GithubDeployRoleBackendArn`  |
-| `ruleslawyer-frontend` | `geekway-<env>-github-deploy-frontend` | `GithubDeployRoleFrontendArn` |
-| `frontends`            | `geekway-<env>-github-deploy-frontends`| `GithubDeployRoleFrontendsArn`|
+| `ruleslawyer-backend`  | `ruleslawyer-<env>-github-deploy-backend`  | `GithubDeployRoleBackendArn`  |
+| `ruleslawyer-frontend` | `ruleslawyer-<env>-github-deploy-frontend` | `GithubDeployRoleFrontendArn` |
+| `frontends`            | `ruleslawyer-<env>-github-deploy-frontends`| `GithubDeployRoleFrontendsArn`|
 
 (all distinct from this repo's infra roles). Each role's trust is pinned to
 `repo:<repo>:environment:<env>`, so **each app repo must define a GitHub Environment
@@ -278,12 +330,12 @@ behind a manual-approval gate, and nonprod gated behind the `NONPROD_ROLE_ARN`
 GitHub OIDC — no static keys. The services stack creates **two** dedicated roles
 per env:
 
-- **Deploy** — `geekway-<env>-github-infra-deploy` (output `GithubInfraDeployRoleArn`),
+- **Deploy** — `ruleslawyer-<env>-github-infra-deploy` (output `GithubInfraDeployRoleArn`),
   assumed by the merge-to-`main` deploy jobs. Trust pinned to
   `repo:<repo>:environment:<env>`. It can **only** assume the CDK bootstrap roles;
   CloudFormation applies the changes via the bootstrap cfn-exec role, so the
   privileged permissions never live on the GitHub-assumable role.
-- **Diff** — `geekway-<env>-github-infra-diff` (output `GithubInfraDiffRoleArn`),
+- **Diff** — `ruleslawyer-<env>-github-infra-diff` (output `GithubInfraDiffRoleArn`),
   assumed by the PR `diff` job **and** the pre-approval `diff-prod` job.
   **Read-only**; trust accepts two subs — `repo:<repo>:pull_request` (PR runs) and
   `repo:<repo>:ref:refs/heads/main` (push-to-`main` runs). It canNOT assume any
@@ -304,7 +356,7 @@ own informational `cdk diff` just before applying. Both push-side diffs are
 `continue-on-error`, so a diff hiccup never blocks a deploy — and that also covers
 the first run, before the widened diff-role trust has been deployed.
 
-The first bootstrap + deploy of each account is manual (steps 2–4 above) — the
+The first bootstrap + deploy of each account is manual (steps 3–5 above) — the
 roles the workflow assumes don't exist until then. Once an env is up, enable CI:
 
 1. **Role ARNs** (Settings → Secrets and variables → Actions). The workflow reads
@@ -343,7 +395,7 @@ roles the workflow assumes don't exist until then. Once an env is up, enable CI:
 ## 9. Verify
 
 ```bash
-aws ecs describe-services --cluster geekway-<env> \
+aws ecs describe-services --cluster ruleslawyer-<env> \
   --services ruleslawyer-backend ruleslawyer-frontend \
   --query 'services[].{name:serviceName,running:runningCount,desired:desiredCount,state:deployments[0].rolloutState}'
 ```
