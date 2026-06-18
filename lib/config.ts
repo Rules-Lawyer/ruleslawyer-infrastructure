@@ -219,7 +219,7 @@ export const envConfig: Record<EnvName, EnvConfig> = {
     // DB; the allowlist below is the routine, replacement-free knob.
     dbPubliclyAccessible: true,
     dbAllowedCidrs: [
-      { cidr: '67.186.112.175/32', description: 'Mattie Duplex' },
+      { cidr: '69.243.149.242/32', description: 'Mattie Duplex' },
       { cidr: '24.52.164.175/32', description: 'Weef House' }
     ],
     backend: {
